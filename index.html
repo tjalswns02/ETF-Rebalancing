@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF 포트폴리오 리밸런싱 가이드</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+        h1, h2 { color: #2c3e50; }
+        .box { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 8px; background-color: #f9f9f9; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        input { width: 80%; padding: 5px; text-align: right; }
+        button { padding: 10px 15px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #2980b9; }
+        #result { font-weight: bold; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+    <h1>📈 ETF 리밸런싱 가이드</h1>
+    <p>목표 비중을 설정하고 현재 자산과 비교하여 매수/매도 가이드를 확인하세요.</p>
+
+    <div class="box">
+        <h2>1. 환율 설정</h2>
+        <label>현재 원/달러 환율 (원): <input type="number" id="exchangeRate" value="1350"></label>
+    </div>
+
+    <div class="box">
+        <h2>2. 자산 입력</h2>
+        <table id="assetTable">
+            <thead>
+                <tr>
+                    <th>자산명 (Ticker)</th>
+                    <th>현재가 (USD)</th>
+                    <th>보유 수량</th>
+                    <th>목표 비중 (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="text" value="SPY"></td>
+                    <td><input type="number" class="price" value="500"></td>
+                    <td><input type="number" class="qty" value="10"></td>
+                    <td><input type="number" class="target" value="60"></td>
+                </tr>
+                <tr>
+                    <td><input type="text" value="QQQ"></td>
+                    <td><input type="number" class="price" value="400"></td>
+                    <td><input type="number" class="qty" value="10"></td>
+                    <td><input type="number" class="target" value="40"></td>
+                </tr>
+            </tbody>
+        </table>
+        <button onclick="calculateRebalancing()">리밸런싱 가이드 도출</button>
+    </div>
+
+    <div class="box">
+        <h2>3. 진단 결과</h2>
+        <div id="result">데이터를 입력하고 버튼을 눌러주세요.</div>
+    </div>
+
+    <script>
+        function calculateRebalancing() {
+            const exchangeRate = parseFloat(document.getElementById('exchangeRate').value);
+            const prices = document.querySelectorAll('.price');
+            const qtys = document.querySelectorAll('.qty');
+            const targets = document.querySelectorAll('.target');
+            const assetNames = document.querySelectorAll('input[type="text"]');
+            
+            let totalAssetKRW = 0;
+            let sumTarget = 0;
+            let assets = [];
+
+            // 1단계: 목표 비중 검증 (sum 함수 역할)
+            for(let i=0; i<targets.length; i++) {
+                sumTarget += parseFloat(targets[i].value);
+            }
+            if(sumTarget !== 100) {
+                alert("목표 비중의 합이 100%가 되어야 합니다! 현재: " + sumTarget + "%");
+                return;
+            }
+
+            // 2단계: 총 자산 규모 계산 (환율 적용)
+            for(let i=0; i<prices.length; i++) {
+                let currentUSD = parseFloat(prices[i].value) * parseFloat(qtys[i].value);
+                let currentKRW = currentUSD * exchangeRate;
+                totalAssetKRW += currentKRW;
+
+                assets.push({
+                    name: assetNames[i].value,
+                    price: parseFloat(prices[i].value),
+                    currentValueKRW: currentKRW,
+                    targetRatio: parseFloat(targets[i].value) / 100
+                });
+            }
+
+            // 3단계: 괴리율 계산 및 매수/매도 명령어 도출 (if, abs, floor 역할)
+            let resultHTML = `<p>총 자산 규모: <strong>${Math.floor(totalAssetKRW).toLocaleString()} 원</strong></p>`;
+            resultHTML += `<ul>`;
+
+            assets.forEach(asset => {
+                let targetValueKRW = totalAssetKRW * asset.targetRatio;
+                let diffKRW = targetValueKRW - asset.currentValueKRW;
+                let diffUSD = diffKRW / exchangeRate;
+                let suggestQty = Math.abs(Math.floor(diffUSD / asset.price)); // floor와 abs 사용
+
+                if (diffKRW > 0 && suggestQty > 0) {
+                    resultHTML += `<li style="color:red;">[매수] ${asset.name}: 목표액보다 부족합니다. 약 ${suggestQty}주 추가 매수를 권장합니다.</li>`;
+                } else if (diffKRW < 0 && suggestQty > 0) {
+                    resultHTML += `<li style="color:blue;">[매도] ${asset.name}: 목표액을 초과했습니다. 약 ${suggestQty}주 매도를 권장합니다.</li>`;
+                } else {
+                    resultHTML += `<li style="color:green;">[유지] ${asset.name}: 목표 비중에 부합합니다.</li>`;
+                }
+            });
+
+            resultHTML += `</ul>`;
+            document.getElementById('result').innerHTML = resultHTML;
+        }
+    </script>
+</body>
+</html>
